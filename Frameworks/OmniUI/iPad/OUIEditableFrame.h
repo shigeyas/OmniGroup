@@ -59,12 +59,18 @@
     CGRect selectionDirtyRect, markedTextDirtyRect;
     
     struct {
+        // Our current state
         unsigned textNeedsUpdate : 1;
-        unsigned delegateRespondsToLayoutChanged: 1;
-        unsigned delegateRespondsToContentsChanged: 1;
-        unsigned showSelectionThumbs: 1;
         unsigned solidCaret: 1;
         unsigned showingEditMenu: 1;
+        
+        // Cached information about our OUIEditableFrameDelegate
+        unsigned delegateRespondsToLayoutChanged: 1;
+        unsigned delegateRespondsToContentsChanged: 1;
+        
+        // Features which can be enabled or disabled
+        unsigned showSelectionThumbs: 1;  // Effectively disables range selection
+        unsigned showInspector: 1;        // Whether the inspector is offered
     } flags;
     
     // Range selection adjustment and display
@@ -110,6 +116,7 @@
 
 - (void)setupCustomMenuItemsForMenuController:(UIMenuController *)menuController;
 
+- (OUEFTextRange *)rangeOfLineContainingPosition:(OUEFTextPosition *)posn;
 
 /* These are the interface from the thumbs to our selection machinery */
 - (void)thumbBegan:(OUITextThumb *)thumb;
@@ -120,6 +127,8 @@
 - (id <NSObject>)attribute:(NSString *)attr inRange:(OUEFTextRange *)r;
 - (void)setValue:(id)value forAttribute:(NSString *)attr inRange:(OUEFTextRange *)r;
 
+- (BOOL)hasTouchesForEvent:(UIEvent *)event;
 
+- (NSSet *)inspectableTextSpans;    // returns set of OUEFTextSpans 
 @end
 

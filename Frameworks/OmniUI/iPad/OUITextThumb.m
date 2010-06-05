@@ -51,6 +51,10 @@ RCS_ID("$Id$");
     [self addGestureRecognizer:dragMe];
     [dragMe release];
     
+    UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_longPress:)];
+    [self addGestureRecognizer:longPress];
+    [longPress release];
+    
     return self;
 }
 
@@ -58,6 +62,7 @@ RCS_ID("$Id$");
 
 - (void)setCaretRectangle:(CGRect)r;
 {
+    // Caret rect is in our frame coordinates (our superview's bounds coordinates).
     CGRect frame = self.frame;
     
     if (ascent != r.size.height || width != r.size.width) {
@@ -74,14 +79,16 @@ RCS_ID("$Id$");
             newBounds.origin.y = - (THUMB_TOUCH_RADIUS + 2*THUMB_HALFWIDTH + THUMB_GAP);
         } else {
             newBounds.size.height = THUMB_TOUCH_RADIUS + THUMB_HALFWIDTH + THUMB_GAP + ascent;
-            if (ascent < (THUMB_TOUCH_RADIUS - (THUMB_GAP + THUMB_HALFWIDTH))) {
-                newBounds.origin.y = (THUMB_TOUCH_RADIUS - (THUMB_GAP + THUMB_HALFWIDTH)) - ascent;
-                newBounds.size.height -= newBounds.origin.y;
+            CGFloat touchBottom = ascent - (THUMB_TOUCH_RADIUS - (THUMB_GAP + THUMB_HALFWIDTH));
+            if (touchBottom < 0) {
+                // If the TOUCH_RADIUS is large enough it extends past the bottom of the caret rectangle, then extend our frame
+                newBounds.origin.y = touchBottom;
+                newBounds.size.height -= touchBottom;
             } else {
                 newBounds.origin.y = 0;
             }
         }
-            
+        
         frame.size = newBounds.size;
         centerYOffset = newBounds.origin.y;
         self.bounds = newBounds;
@@ -100,6 +107,16 @@ RCS_ID("$Id$");
 - (BOOL)canBecomeFirstResponder
 {
     return NO;
+}
+
+- (UILongPressGestureRecognizer *)longPressGestureRecognizer;
+{
+    for (UIGestureRecognizer *recognizer in [self gestureRecognizers]) {
+        if ([recognizer isKindOfClass:[UILongPressGestureRecognizer class]])
+            return (UILongPressGestureRecognizer *)recognizer;
+    }
+    
+    return nil;
 }
 
 - (void)drawRect:(CGRect)rect;
@@ -191,13 +208,43 @@ RCS_ID("$Id$");
         /* The point below is the center of the caret rectangle we draw. We want to use that rather than the baseline point or the thumb point to allow the maximum finger slop before the text view selects a different line. */
         touchdownPoint = [self convertPoint:(CGPoint){0, 2 * myBounds.origin.y + myBounds.size.height - ascent/2} toView:parent];
         [parent thumbBegan:self];
-    } else {
+    }
+
+    /* UIPanGestureRecognizer will return a delta of { -NAN, -NAN } sometimes (if it would be outside the parent view's bounds maybe?). */
+    if ((isfinite(delta.x) && isfinite(delta.y)) &&
+        (st != UIGestureRecognizerStateBegan || !(delta.x == 0 && delta.y == 0))) {
         [parent thumbMoved:self targetPosition:(CGPoint){ touchdownPoint.x + delta.x, touchdownPoint.y + delta.y }];
     }
     
     if (st == UIGestureRecognizerStateEnded || st == UIGestureRecognizerStateCancelled) {
         [parent thumbEnded:self normally:(st == UIGestureRecognizerStateEnded? YES:NO)];
-        touchdownPoint = (CGPoint){ nan(NULL), nan(NULL) };
+        touchdownPoint = (CGPoint){ NAN, NAN };
+    }
+}
+
+
+- (void)_longPress:(UILongPressGestureRecognizer *)gestureRecognizer;
+{
+    OUIEditableFrame *parent = (OUIEditableFrame *)(self.superview);
+    UIGestureRecognizerState st = gestureRecognizer.state;
+    
+    CGPoint currentPoint = [gestureRecognizer locationInView:parent];
+    
+    if (st == UIGestureRecognizerStateBegan) {
+        CGRect myBounds = self.bounds;
+        /* The point below is the center of the caret rectangle we draw. We want to use that rather than the baseline point or the thumb point to allow the maximum finger slop before the text view selects a different line. */
+        touchdownPoint = [self convertPoint:(CGPoint){0, 2 * myBounds.origin.y + myBounds.size.height - ascent/2} toView:parent];
+        originalPoint = currentPoint;
+        [parent thumbBegan:self];
+    }
+    
+    if (st != UIGestureRecognizerStateBegan)
+        [parent thumbMoved:self targetPosition:(CGPoint){ touchdownPoint.x + (currentPoint.x - originalPoint.x), touchdownPoint.y + (currentPoint.y - originalPoint.y) }];
+    
+    if (st == UIGestureRecognizerStateEnded || st == UIGestureRecognizerStateCancelled) {
+        [parent thumbEnded:self normally:(st == UIGestureRecognizerStateEnded? YES:NO)];
+        touchdownPoint = (CGPoint){ NAN, NAN };
+        originalPoint = CGPointZero;
     }
 }
 

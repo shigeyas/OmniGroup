@@ -1,4 +1,4 @@
-// Copyright 2007 Omni Development, Inc.  All rights reserved.
+// Copyright 2010 Omni Development, Inc.  All rights reserved.
 //
 // This software may only be used and reproduced according to the
 // terms in the file OmniSourceLicense.html, which should be
@@ -7,15 +7,4 @@
 //
 // $Id$
 
-#import "OIInspector.h"
-
-#import <AppKit/NSNibDeclarations.h>
-
-@interface OIInspectorSection : OIInspector
-{
-    IBOutlet NSView *firstKeyView;
-}
-
-- (NSView *)firstKeyView;
-
-@end
+extern NSString *OFDateFormatStringForOldFormatString(NSString *oldFormat);
